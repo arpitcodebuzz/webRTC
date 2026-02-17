@@ -2,12 +2,19 @@
 <html>
 <head>
   <title>WebRTC 1-to-1 Test</title>
+  <style>
+    video {
+      width: 300px;
+      border: 1px solid #ccc;
+      margin: 10px;
+    }
+  </style>
 </head>
 <body>
-  <h2>WebRTC 1-to-1 Local Test</h2>
+  <h2>WebRTC 1-to-1 Call</h2>
 
   <video id="localVideo" autoplay playsinline muted></video>
-  <video id="remoteVideo" autoplay playsinline></video>
+  <video id="remoteVideo" autoplay playsinline muted></video>
 
   <br />
   <button id="callBtn">Start Call</button>
