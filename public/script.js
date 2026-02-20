@@ -1,75 +1,161 @@
-const socket = io();
+// public/script.js
+
+const startBtn = document.getElementById("startBtn");
+const callBtn = document.getElementById("callBtn");
+const hangupBtn = document.getElementById("hangupBtn");
+const statusEl = document.getElementById("status");
 
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
-const callBtn = document.getElementById("callBtn");
 
-let role = null;
+const socket = io(); // Connect to our Socket.IO server
 
-// Receive role from server
-socket.on("role", (assignedRole) => {
-  role = assignedRole;
-  console.log("My role:", role);
-});
+let localStream;
+let peerConnection;
 
-// Peer connection
-const pc = new RTCPeerConnection({
+// STUN server config (public Google STUN)
+const iceConfig = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-});
-
-// Get camera & mic
-navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-  .then((stream) => {
-    localVideo.srcObject = stream;
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
-  });
-
-// Receive remote stream
-pc.ontrack = (event) => {
-  console.log("Remote stream received");
-  remoteVideo.srcObject = event.streams[0];
 };
 
-// ICE candidates
-pc.onicecandidate = (event) => {
-  if (event.candidate) {
-    socket.emit("ice-candidate", event.candidate);
-  }
-};
+function setStatus(text) {
+  console.log(text);
+  statusEl.textContent = "Status: " + text;
+}
 
-socket.on("ice-candidate", async (candidate) => {
+// 1) Start camera / mic
+startBtn.onclick = async () => {
   try {
-    await pc.addIceCandidate(candidate);
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true,
+    });
+
+    localVideo.srcObject = localStream;
+
+    callBtn.disabled = false;
+    startBtn.disabled = true;
+
+    setStatus("Camera started. Now click 'Start Call' on ONE tab.");
   } catch (err) {
-    console.error("ICE error:", err);
+    console.error("Error getting user media:", err);
+    setStatus("Error accessing camera/mic. Check permissions.");
   }
-});
+};
 
-// Offer received
-socket.on("offer", async (offer) => {
-  console.log("Offer received");
-  await pc.setRemoteDescription(offer);
+// Helper: create RTCPeerConnection and glue events
+function createPeerConnection() {
+  peerConnection = new RTCPeerConnection(iceConfig);
 
-  const answer = await pc.createAnswer();
-  await pc.setLocalDescription(answer);
-  socket.emit("answer", answer);
-});
+  // When we get ICE candidates locally, send them to the other peer
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("ice-candidate", event.candidate);
+    }
+  };
 
-// Answer received
-socket.on("answer", async (answer) => {
-  console.log("Answer received");
-  await pc.setRemoteDescription(answer);
-});
+  // Remote stream tracks
+  peerConnection.ontrack = (event) => {
+    console.log("Received remote track");
+    remoteVideo.srcObject = event.streams[0];
+  };
 
-// Start call (ONLY caller)
+  // Add our local stream tracks to the connection
+  if (localStream) {
+    localStream.getTracks().forEach((track) => {
+      peerConnection.addTrack(track, localStream);
+    });
+  }
+}
+
+// 2) Start call (create offer)
 callBtn.onclick = async () => {
-  if (role !== "caller") {
-    alert("Wait for caller to start the call");
+  if (!localStream) {
+    setStatus("Start camera first!");
     return;
   }
 
-  console.log("Creating offer");
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  socket.emit("offer", offer);
+  createPeerConnection();
+
+  try {
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    socket.emit("offer", offer);
+    setStatus("Offer sent. Waiting for answer...");
+
+    callBtn.disabled = true;
+    hangupBtn.disabled = false;
+  } catch (err) {
+    console.error("Error creating offer:", err);
+    setStatus("Error creating offer.");
+  }
+};
+
+// 3) Handle incoming offer (from the other peer)
+socket.on("offer", async (offer) => {
+  // If we are the receiving side
+  if (!peerConnection) {
+    createPeerConnection();
+  }
+
+  try {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    socket.emit("answer", answer);
+    setStatus("Answer sent.");
+
+    callBtn.disabled = true;
+    hangupBtn.disabled = false;
+  } catch (err) {
+    console.error("Error handling offer:", err);
+    setStatus("Error handling offer.");
+  }
+});
+
+// 4) Handle incoming answer
+socket.on("answer", async (answer) => {
+  try {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    setStatus("Connected! Video call established.");
+  } catch (err) {
+    console.error("Error setting remote description with answer:", err);
+    setStatus("Error handling answer.");
+  }
+});
+
+// 5) Handle incoming ICE candidates
+socket.on("ice-candidate", async (candidate) => {
+  try {
+    if (peerConnection) {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  } catch (err) {
+    console.error("Error adding received ICE candidate:", err);
+  }
+});
+
+// 6) Hang up
+hangupBtn.onclick = () => {
+  if (peerConnection) {
+    peerConnection.close();
+    peerConnection = null;
+  }
+
+  if (localStream) {
+    localStream.getTracks().forEach((track) => track.stop());
+    localStream = null;
+  }
+
+  localVideo.srcObject = null;
+  remoteVideo.srcObject = null;
+
+  startBtn.disabled = false;
+  callBtn.disabled = true;
+  hangupBtn.disabled = true;
+
+  setStatus("Call ended. You can start again.");
 };

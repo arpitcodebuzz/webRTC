@@ -1,25 +1,84 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <title>WebRTC 1-to-1 Test</title>
-  <style>
-    video {
-      width: 300px;
-      border: 1px solid #ccc;
-      margin: 10px;
-    }
-  </style>
-</head>
-<body>
-  <h2>WebRTC 1-to-1 Call</h2>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Simple WebRTC Video Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #0f172a;
+        color: #e5e7eb;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+      h1 {
+        margin-top: 0;
+        font-size: 20px;
+        margin-bottom: 8px;
+      }
+      .videos {
+        display: flex;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      video {
+        width: 48%;
+        background: #111827;
+        border-radius: 8px;
+        border: 1px solid #1f2937;
+      }
+      .controls {
+        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+      }
+      button {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: none;
+        background: #2563eb;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button:disabled {
+        background: #374151;
+        cursor: not-allowed;
+      }
+      .status {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #9ca3af;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WebRTC Video Chat (2 users)</h1>
 
-  <video id="localVideo" autoplay playsinline muted></video>
-  <video id="remoteVideo" autoplay playsinline muted></video>
+    <div class="controls">
+      <button id="startBtn">1️⃣ Start Camera</button>
+      <button id="callBtn" disabled>2️⃣ Start Call</button>
+      <button id="hangupBtn" disabled>3️⃣ Hang Up</button>
+    </div>
 
-  <br />
-  <button id="callBtn">Start Call</button>
+    <div class="status" id="status">Status: Not started</div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="script.js"></script>
-</body>
+    <div class="videos">
+      <div>
+        <p>Me</p>
+        <video id="localVideo" autoplay playsinline muted></video>
+      </div>
+      <div>
+        <p>Remote</p>
+        <video id="remoteVideo" autoplay playsinline></video>
+      </div>
+    </div>
+
+    <!-- Socket.IO client from our server -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Our script -->
+    <script src="script.js"></script>
+  </body>
 </html>
