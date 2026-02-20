@@ -3,27 +3,50 @@
 const startBtn = document.getElementById("startBtn");
 const callBtn = document.getElementById("callBtn");
 const hangupBtn = document.getElementById("hangupBtn");
+
 const statusEl = document.getElementById("status");
+const headerStatusEl = document.getElementById("headerStatus");
 
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 
-const socket = io(); // Connect to our Socket.IO server
+const localPlaceholder = document.getElementById("localPlaceholder");
+const remotePlaceholder = document.getElementById("remotePlaceholder");
 
-let localStream;
-let peerConnection;
+// Connect to Socket.IO server (same origin)
+const socket = io();
 
-// STUN server config (public Google STUN)
+let localStream = null;
+let peerConnection = null;
+
 const iceConfig = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-function setStatus(text) {
+function setStatus(text, headerState = "default") {
   console.log(text);
-  statusEl.textContent = "Status: " + text;
+  statusEl.textContent = text;
+
+  if (headerState === "connected") {
+    headerStatusEl.textContent = "In call";
+  } else if (headerState === "error") {
+    headerStatusEl.textContent = "Error";
+  } else if (headerState === "connecting") {
+    headerStatusEl.textContent = "Connecting...";
+  } else {
+    headerStatusEl.textContent = "Idle";
+  }
 }
 
-// 1) Start camera / mic
+function showLocalPlaceholder(show) {
+  localPlaceholder.style.display = show ? "flex" : "none";
+}
+
+function showRemotePlaceholder(show) {
+  remotePlaceholder.style.display = show ? "flex" : "none";
+}
+
+// 1) Start camera / mic (or gracefully handle if not available)
 startBtn.onclick = async () => {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({
@@ -32,35 +55,42 @@ startBtn.onclick = async () => {
     });
 
     localVideo.srcObject = localStream;
+    showLocalPlaceholder(false);
 
-    callBtn.disabled = false;
-    startBtn.disabled = true;
-
-    setStatus("Camera started. Now click 'Start Call' on ONE tab.");
+    setStatus(
+      "Camera started. Now open this page on another device/tab and click 'Start Call' on ONE of them.",
+      "default"
+    );
   } catch (err) {
     console.error("Error getting user media:", err);
-    setStatus("Error accessing camera/mic. Check permissions.");
+    setStatus(
+      "No camera/mic found or permission denied. You can still join as a receive-only peer.",
+      "error"
+    );
+  } finally {
+    // Even if camera fails, allow starting/receiving a call
+    callBtn.disabled = false;
+    startBtn.disabled = true;
   }
 };
 
-// Helper: create RTCPeerConnection and glue events
 function createPeerConnection() {
   peerConnection = new RTCPeerConnection(iceConfig);
 
-  // When we get ICE candidates locally, send them to the other peer
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit("ice-candidate", event.candidate);
     }
   };
 
-  // Remote stream tracks
   peerConnection.ontrack = (event) => {
     console.log("Received remote track");
     remoteVideo.srcObject = event.streams[0];
+    showRemotePlaceholder(false);
+    setStatus("Receiving remote stream...", "connected");
   };
 
-  // Add our local stream tracks to the connection
+  // If we have local media, attach it; otherwise we act as receive-only
   if (localStream) {
     localStream.getTracks().forEach((track) => {
       peerConnection.addTrack(track, localStream);
@@ -70,31 +100,29 @@ function createPeerConnection() {
 
 // 2) Start call (create offer)
 callBtn.onclick = async () => {
-  if (!localStream) {
-    setStatus("Start camera first!");
-    return;
+  if (!peerConnection) {
+    createPeerConnection();
   }
-
-  createPeerConnection();
 
   try {
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
 
     socket.emit("offer", offer);
-    setStatus("Offer sent. Waiting for answer...");
+    setStatus("Offer sent. Waiting for answer...", "connecting");
 
     callBtn.disabled = true;
     hangupBtn.disabled = false;
   } catch (err) {
     console.error("Error creating offer:", err);
-    setStatus("Error creating offer.");
+    setStatus("Error creating offer.", "error");
   }
 };
 
-// 3) Handle incoming offer (from the other peer)
+// 3) Handle incoming offer
 socket.on("offer", async (offer) => {
-  // If we are the receiving side
+  console.log("Received offer");
+
   if (!peerConnection) {
     createPeerConnection();
   }
@@ -106,32 +134,36 @@ socket.on("offer", async (offer) => {
     await peerConnection.setLocalDescription(answer);
 
     socket.emit("answer", answer);
-    setStatus("Answer sent.");
+    setStatus("Answer sent. Waiting for media...", "connecting");
 
     callBtn.disabled = true;
     hangupBtn.disabled = false;
   } catch (err) {
     console.error("Error handling offer:", err);
-    setStatus("Error handling offer.");
+    setStatus("Error handling offer.", "error");
   }
 });
 
 // 4) Handle incoming answer
 socket.on("answer", async (answer) => {
+  console.log("Received answer");
   try {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    setStatus("Connected! Video call established.");
+    await peerConnection.setRemoteDescription(
+      new RTCSessionDescription(answer)
+    );
+    setStatus("Connected! Waiting for remote media...", "connecting");
   } catch (err) {
-    console.error("Error setting remote description with answer:", err);
-    setStatus("Error handling answer.");
+    console.error("Error handling answer:", err);
+    setStatus("Error handling answer.", "error");
   }
 });
 
 // 5) Handle incoming ICE candidates
 socket.on("ice-candidate", async (candidate) => {
   try {
-    if (peerConnection) {
+    if (peerConnection && candidate) {
       await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      console.log("Added remote ICE candidate");
     }
   } catch (err) {
     console.error("Error adding received ICE candidate:", err);
@@ -153,9 +185,12 @@ hangupBtn.onclick = () => {
   localVideo.srcObject = null;
   remoteVideo.srcObject = null;
 
+  showLocalPlaceholder(true);
+  showRemotePlaceholder(true);
+
   startBtn.disabled = false;
   callBtn.disabled = true;
   hangupBtn.disabled = true;
 
-  setStatus("Call ended. You can start again.");
+  setStatus("Call ended. You can start again.", "default");
 };

@@ -6,7 +6,7 @@ import { Server } from "socket.io";
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO server (for signaling)
+// Socket.IO signaling server
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -14,27 +14,23 @@ const io = new Server(server, {
   },
 });
 
-// Serve static files from "public" folder
+// Serve static frontend
 app.use(express.static("public"));
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // Receive offer from one peer and send to the other
   socket.on("offer", (offer) => {
     console.log("Received offer from", socket.id);
     socket.broadcast.emit("offer", offer);
   });
 
-  // Receive answer from other peer and send back
   socket.on("answer", (answer) => {
     console.log("Received answer from", socket.id);
     socket.broadcast.emit("answer", answer);
   });
 
-  // ICE candidates exchange
   socket.on("ice-candidate", (candidate) => {
-    // candidate can be null at the end; just forward if exists
     if (candidate) {
       console.log("Received ICE candidate from", socket.id);
       socket.broadcast.emit("ice-candidate", candidate);
