@@ -1,539 +1,103 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
     <meta charset="UTF-8" />
-    <title>WebRTC Video Chat</title>
+    <title>WebRTC Group Video Chat</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
     <style>
-      :root {
-        --bg: #020617;
-        --bg-soft: #020617;
-        --card: #020617;
-        --accent: #4f46e5;
-        --accent-soft: rgba(79, 70, 229, 0.15);
-        --accent-strong: rgba(79, 70, 229, 0.35);
-        --border: #1e293b;
-        --text: #e5e7eb;
-        --muted: #9ca3af;
-        --danger: #ef4444;
-        --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.85);
-      }
-
       * {
         box-sizing: border-box;
-        margin: 0;
-        padding: 0;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
           sans-serif;
       }
-
       body {
-        min-height: 100vh;
-        background: radial-gradient(120% 180% at 10% 0%, #1d2437, #020617 55%)
-          fixed;
-        color: var(--text);
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        margin: 0;
         padding: 16px;
-      }
-
-      .app-shell {
-        width: 100%;
-        max-width: 1100px;
-        background: linear-gradient(
-              145deg,
-              rgba(148, 163, 184, 0.08),
-              transparent 50%
-            )
-            border-box,
-          radial-gradient(circle at 0 0, rgba(79, 70, 229, 0.45), transparent)
-            border-box;
-        border-radius: 24px;
-        border: 1px solid rgba(148, 163, 184, 0.22);
-        box-shadow: var(--shadow-soft);
-        overflow: hidden;
-        backdrop-filter: blur(24px);
-      }
-
-      .header {
-        padding: 18px 20px 8px;
-        border-bottom: 1px solid rgba(30, 41, 59, 0.9);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-      }
-
-      .header-left {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .logo-pill {
-        width: 34px;
-        height: 34px;
-        border-radius: 999px;
-        background: radial-gradient(circle at 0 0, #38bdf8, #4f46e5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        background: #0f172a;
         color: #e5e7eb;
-        font-weight: 600;
-        font-size: 18px;
-        box-shadow: 0 0 18px rgba(56, 189, 248, 0.45);
       }
-
-      .title-block h1 {
-        font-size: 18px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
+      h1 {
+        margin-top: 0;
+        font-size: 20px;
       }
-
-      .title-block p {
-        font-size: 12px;
-        color: var(--muted);
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
       }
-
-      .header-right {
+      .controls {
+        margin-bottom: 12px;
         display: flex;
-        align-items: center;
+        flex-wrap: wrap;
         gap: 8px;
       }
-
-      .badge-pill {
-        font-size: 11px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.85);
-        border: 1px solid rgba(148, 163, 184, 0.4);
-        color: var(--muted);
+      button {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: none;
+        background: #2563eb;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
       }
-
-      .status-pill {
-        font-size: 11px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        background: rgba(22, 163, 74, 0.12);
-        border: 1px solid rgba(34, 197, 94, 0.4);
-        color: #bbf7d0;
+      button:disabled {
+        background: #4b5563;
+        cursor: not-allowed;
       }
-
-      .content {
-        display: grid;
-        grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-        gap: 1px;
-        background: rgba(15, 23, 42, 0.9);
-      }
-
-      .column {
-        background: rgba(15, 23, 42, 0.88);
-        padding: 16px 18px 18px;
-      }
-
-      .column-primary {
-        border-right: 1px solid rgba(30, 41, 59, 0.9);
-      }
-
-      .section-title {
+      .status {
+        margin: 8px 0 16px;
         font-size: 13px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--muted);
-        margin-bottom: 10px;
+        color: #9ca3af;
       }
-
-      .videos-container {
+      .videos {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 12px;
       }
-
-      .video-card {
-        background: radial-gradient(circle at top, #020617, #020617);
-        border-radius: 16px;
-        border: 1px solid rgba(30, 64, 175, 0.6);
-        padding: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        position: relative;
-        overflow: hidden;
-        isolation: isolate;
+      .video-box {
+        background: #020617;
+        border-radius: 8px;
+        padding: 8px;
+        border: 1px solid #1f2937;
       }
-
-      .video-card::before {
-        content: "";
-        position: absolute;
-        inset: -40%;
-        background: radial-gradient(
-          circle at 0 0,
-          rgba(96, 165, 250, 0.13),
-          transparent
-        );
-        opacity: 0.9;
-        pointer-events: none;
-        z-index: -1;
+      .video-box p {
+        margin: 0 0 4px;
+        font-size: 14px;
       }
-
-      .video-label-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 12px;
-        color: var(--muted);
-      }
-
-      .video-label {
-        font-weight: 500;
-      }
-
-      .video-chip-local {
-        font-size: 10px;
-        padding: 2px 7px;
-        border-radius: 999px;
-        background: rgba(52, 211, 153, 0.12);
-        color: #6ee7b7;
-        border: 1px solid rgba(52, 211, 153, 0.4);
-      }
-
-      .video-chip-remote {
-        font-size: 10px;
-        padding: 2px 7px;
-        border-radius: 999px;
-        background: rgba(59, 130, 246, 0.12);
-        color: #bfdbfe;
-        border: 1px solid rgba(59, 130, 246, 0.4);
-      }
-
       video {
         width: 100%;
-        aspect-ratio: 16 / 9;
-        border-radius: 12px;
-        border: 1px solid rgba(15, 23, 42, 0.9);
-        background: radial-gradient(circle at 50% 0, #020617, #000);
-        object-fit: cover;
-      }
-
-      .placeholder {
-        width: 100%;
-        height: 100%;
-        min-height: 180px;
-        border-radius: 12px;
-        background: repeating-linear-gradient(
-          135deg,
-          rgba(15, 23, 42, 0.9),
-          rgba(15, 23, 42, 0.9) 12px,
-          rgba(30, 64, 175, 0.45) 12px,
-          rgba(30, 64, 175, 0.45) 24px
-        );
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: rgba(148, 163, 184, 0.7);
-        font-size: 12px;
-        text-align: center;
-        padding: 0 16px;
-      }
-
-      .controls {
-        margin-top: 16px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-      }
-
-      .btn {
-        border: none;
-        border-radius: 999px;
-        padding: 9px 16px;
-        font-size: 13px;
-        font-weight: 500;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        cursor: pointer;
-        transition: transform 0.08s ease, box-shadow 0.08s ease,
-          background-color 0.14s ease, opacity 0.15s ease;
-        outline: none;
-      }
-
-      .btn span {
-        font-size: 15px;
-      }
-
-      .btn-primary {
-        background: linear-gradient(135deg, #4f46e5, #06b6d4);
-        color: white;
-        box-shadow: 0 10px 22px rgba(37, 99, 235, 0.45);
-      }
-
-      .btn-secondary {
-        background: rgba(15, 23, 42, 0.95);
-        border: 1px solid rgba(148, 163, 184, 0.5);
-        color: var(--text);
-      }
-
-      .btn-danger {
-        background: rgba(248, 113, 113, 0.16);
-        border: 1px solid rgba(248, 113, 113, 0.6);
-        color: #fecaca;
-      }
-
-      .btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-        box-shadow: none;
-        transform: none;
-      }
-
-      .btn:not(:disabled):active {
-        transform: translateY(1px) scale(0.99);
-        box-shadow: none;
-      }
-
-      .hint-row {
-        margin-top: 10px;
-        font-size: 11px;
-        color: var(--muted);
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-
-      .hint-tag {
-        padding: 2px 9px;
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.95);
-        border: 1px dashed rgba(148, 163, 184, 0.5);
-      }
-
-      .status-text {
-        margin-top: 10px;
-        font-size: 12px;
-        color: var(--muted);
-      }
-
-      .status-highlight {
-        color: #e5e7eb;
-        font-weight: 500;
-      }
-
-      .info-card {
-        background: radial-gradient(circle at 0 0, #0b1120, #020617);
-        border-radius: 16px;
-        border: 1px solid rgba(30, 64, 175, 0.6);
-        padding: 12px 12px 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .info-chip {
-        font-size: 11px;
-        padding: 3px 8px;
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.95);
-        border: 1px solid rgba(148, 163, 184, 0.6);
-        align-self: flex-start;
-        color: var(--muted);
-      }
-
-      .info-title {
-        font-size: 14px;
-        font-weight: 500;
-      }
-
-      .info-list {
-        margin-top: 4px;
-        padding-left: 16px;
-        font-size: 12px;
-        color: var(--muted);
-      }
-
-      .info-list li + li {
-        margin-top: 4px;
-      }
-
-      .footer-note {
-        margin-top: 10px;
-        font-size: 11px;
-        color: var(--muted);
-      }
-
-      .footer-note strong {
-        color: #e5e7eb;
-        font-weight: 500;
-      }
-
-      @media (max-width: 900px) {
-        .content {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        .column-primary {
-          border-right: none;
-          border-bottom: 1px solid rgba(30, 41, 59, 0.9);
-        }
-        .app-shell {
-          border-radius: 18px;
-        }
-      }
-
-      @media (max-width: 640px) {
-        body {
-          padding: 10px;
-        }
-
-        .content {
-          gap: 0;
-        }
-
-        .column {
-          padding: 14px 12px 14px;
-        }
-
-        .videos-container {
-          grid-template-columns: minmax(0, 1fr);
-        }
-
-        .placeholder {
-          min-height: 160px;
-        }
-
-        .header {
-          padding-inline: 14px;
-        }
-
-        .title-block h1 {
-          font-size: 16px;
-        }
-
-        .title-block p {
-          display: none;
-        }
+        max-height: 260px;
+        background: #111827;
+        border-radius: 6px;
       }
     </style>
   </head>
-
   <body>
-    <div class="app-shell">
-      <header class="header">
-        <div class="header-left">
-          <div class="logo-pill">VC</div>
-          <div class="title-block">
-            <h1>WebRTC Video Chat</h1>
-            <p>Simple 1-to-1 call using WebRTC + Socket.IO</p>
-          </div>
+    <div class="container">
+      <h1>WebRTC Group Video Chat</h1>
+
+      <div class="controls">
+        <button id="startBtn">1️⃣ Start Camera</button>
+        <button id="callBtn" disabled>2️⃣ Join Call</button>
+        <button id="hangupBtn" disabled>3️⃣ Hang Up</button>
+      </div>
+
+      <div class="status" id="status">Status: Not started</div>
+
+      <div class="videos">
+        <div class="video-box">
+          <p>You</p>
+          <video id="localVideo" autoplay playsinline muted></video>
         </div>
 
-        <div class="header-right">
-          <div class="badge-pill">Demo</div>
-          <div class="status-pill" id="headerStatus">Idle</div>
+        <!-- Container where we will dynamically add remote videos -->
+        <div class="video-box" id="remoteVideosBox">
+          <p>Others in call</p>
+          <div id="remoteVideos"></div>
         </div>
-      </header>
-
-      <main class="content">
-        <!-- PRIMARY COLUMN: VIDEO + CONTROLS -->
-        <section class="column column-primary">
-          <div class="section-title">Live call</div>
-
-          <div class="videos-container">
-            <div class="video-card">
-              <div class="video-label-row">
-                <span class="video-label">You</span>
-                <span class="video-chip-local">Local preview</span>
-              </div>
-              <video id="localVideo" autoplay playsinline muted></video>
-              <div class="placeholder" id="localPlaceholder">
-                Tap <strong>&nbsp;Start Camera&nbsp;</strong> on a device that
-                has mic/camera (e.g. your phone).
-              </div>
-            </div>
-
-            <div class="video-card">
-              <div class="video-label-row">
-                <span class="video-label">Other side</span>
-                <span class="video-chip-remote">Remote stream</span>
-              </div>
-              <video id="remoteVideo" autoplay playsinline></video>
-              <div class="placeholder" id="remotePlaceholder">
-                Once both peers are connected, the remote video will appear
-                here.
-              </div>
-            </div>
-          </div>
-
-          <div class="controls">
-            <button class="btn btn-secondary" id="startBtn">
-              <span>🎥</span>
-              Start Camera
-            </button>
-
-            <button class="btn btn-primary" id="callBtn" disabled>
-              <span>📞</span>
-              Start Call
-            </button>
-
-            <button class="btn btn-danger" id="hangupBtn" disabled>
-              <span>✖</span>
-              Hang Up
-            </button>
-          </div>
-
-          <div class="hint-row">
-            <div class="hint-tag">
-              Open this page in <strong>two tabs / devices</strong>
-            </div>
-            <div class="hint-tag">
-              On at least one device, allow camera + mic
-            </div>
-          </div>
-
-          <div class="status-text">
-            <span class="status-highlight">Status:</span>
-            <span id="status">Not started</span>
-          </div>
-        </section>
-
-        <!-- SIDE COLUMN: INFO / HELP -->
-        <section class="column">
-          <div class="section-title">How to use</div>
-
-          <div class="info-card">
-            <div class="info-chip">Step-by-step</div>
-            <div class="info-title">Start your first call</div>
-            <ul class="info-list">
-              <li>Open this page on <strong>two devices</strong> or tabs.</li>
-              <li>
-                On the device with a camera (phone/laptop), click
-                <strong>Start Camera</strong>.
-              </li>
-              <li>
-                Then, on <strong>either</strong> device, click
-                <strong>Start Call</strong> to connect.
-              </li>
-              <li>
-                If a device has no mic/camera (like your PC), it can still join
-                as <strong>receive-only</strong>.
-              </li>
-            </ul>
-          </div>
-
-          <p class="footer-note">
-            This demo uses <strong>WebRTC</strong> for peer-to-peer media and
-            <strong>Socket.IO</strong> just for signaling (offer / answer / ICE
-            candidates).
-          </p>
-        </section>
-      </main>
+      </div>
     </div>
 
-    <!-- Socket.IO client from the same origin -->
     <script src="/socket.io/socket.io.js"></script>
-    <!-- App logic -->
     <script src="script.js"></script>
   </body>
 </html>

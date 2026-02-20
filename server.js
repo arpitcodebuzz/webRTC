@@ -6,7 +6,6 @@ import { Server } from "socket.io";
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO signaling server
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -20,25 +19,45 @@ app.use(express.static("public"));
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("offer", (offer) => {
-    console.log("Received offer from", socket.id);
-    socket.broadcast.emit("offer", offer);
+  // User joins a room (we'll use a simple string from client)
+  socket.on("join-room", async (roomId) => {
+    console.log(`Socket ${socket.id} joining room ${roomId}`);
+    socket.join(roomId);
+
+    // Get all sockets in this room
+    const clients = await io.in(roomId).allSockets(); // Set of socket IDs
+    const otherUsers = [...clients].filter((id) => id !== socket.id);
+
+    // Send existing users to the new client
+    socket.emit("all-users", otherUsers);
   });
 
-  socket.on("answer", (answer) => {
-    console.log("Received answer from", socket.id);
-    socket.broadcast.emit("answer", answer);
+  // Relay offer to specific target
+  socket.on("send-offer", ({ targetId, offer }) => {
+    console.log(`Offer from ${socket.id} to ${targetId}`);
+    io.to(targetId).emit("receive-offer", { fromId: socket.id, offer });
   });
 
-  socket.on("ice-candidate", (candidate) => {
+  // Relay answer to specific target
+  socket.on("send-answer", ({ targetId, answer }) => {
+    console.log(`Answer from ${socket.id} to ${targetId}`);
+    io.to(targetId).emit("receive-answer", { fromId: socket.id, answer });
+  });
+
+  // Relay ICE candidate to specific target
+  socket.on("send-ice-candidate", ({ targetId, candidate }) => {
+    // candidate can be null at end of gathering; usually we forward only real ones
     if (candidate) {
-      console.log("Received ICE candidate from", socket.id);
-      socket.broadcast.emit("ice-candidate", candidate);
+      io.to(targetId).emit("receive-ice-candidate", {
+        fromId: socket.id,
+        candidate,
+      });
     }
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
+    // For a real app you might notify others to remove this user's video
   });
 });
 
